@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using DSharpPlus.Entities;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
-using dotenv.net;
 
 
 namespace MyFirstBot
@@ -14,7 +13,9 @@ namespace MyFirstBot
     {
         static void Main(string[] args)
         {
-            Console.WriteLine(DotEnv.Read());
+            string path = Directory.GetCurrentDirectory();
+            Console.WriteLine(path);
+            DotNetEnv.Env.Load("../../../.env");
             MainAsync().GetAwaiter().GetResult();
         }
 
@@ -36,7 +37,7 @@ namespace MyFirstBot
             var discord = new DiscordClient(new DiscordConfiguration()
             {
 
-                Token = DotEnv.Read()["TOKEN"],
+                Token = Environment.GetEnvironmentVariable("TOKEN"),
                 TokenType = TokenType.Bot
             });
 
