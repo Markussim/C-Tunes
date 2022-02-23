@@ -59,7 +59,7 @@ namespace MyFirstBot
     public class Commands : BaseCommandModule
     {
         [Command]
-        public async Task Join(CommandContext ctx)
+        public async Task play(CommandContext ctx, params string[] song)
         {
             if(ctx.Member.VoiceState.Channel != null)
             {
@@ -82,9 +82,8 @@ namespace MyFirstBot
                 }
 
                 await node.ConnectAsync(channel);
-                await ctx.RespondAsync($"Joined {channel.Name}!");
                 LavaLinkUtils lavaa = new LavaLinkUtils();
-                await lavaa.pucko(ctx);
+                await lavaa.addSong(ctx, String.Join(" ", song));
             } else
             {
                 await ctx.RespondAsync("You're not in a channel, pucko");
@@ -137,9 +136,9 @@ namespace MyFirstBot
 
     public class LavaLinkUtils
     {
-        public async Task pucko(CommandContext ctx)
+        private Queue queue = new Queue();
+        public async Task addSong(CommandContext ctx, string song)
         {
-            String search = "Puckobarn";
             //Important to check the voice state itself first, 
             //as it may throw a NullReferenceException if they don't have a voice state.
             if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
@@ -158,7 +157,7 @@ namespace MyFirstBot
                 return;
             }
 
-            var loadResult = await node.Rest.GetTracksAsync(search);
+            var loadResult = await node.Rest.GetTracksAsync(song);
 
             //If something went wrong on Lavalink's end                          
             if (loadResult.LoadResultType == LavalinkLoadResultType.LoadFailed
@@ -166,20 +165,86 @@ namespace MyFirstBot
                 //or it just couldn't find anything.
                 || loadResult.LoadResultType == LavalinkLoadResultType.NoMatches)
             {
-                await ctx.RespondAsync($"Track search failed for {search}.");
+                await ctx.RespondAsync($"Track search failed for {song}.");
                 return;
             }
 
             var track = loadResult.Tracks.First();
 
-            await conn.PlayAsync(track);
+            if(queue.IsEmpty())
+            {
+                Console.WriteLine("First song");
+                queue.AddTrack(track);
+                playSong(conn, ctx);
+            } else
+            {
+                Console.WriteLine("Next song");
+                queue.AddTrack(track);
+            }
+        }
 
+        private async void playSong(LavalinkGuildConnection conn, CommandContext ctx)
+        {
+            LavalinkTrack track = queue.GetNext();
+            await conn.PlayAsync(track);
             await ctx.RespondAsync($"Now playing {track.Title}!");
+            
+
+            conn.PlaybackFinished += async (sender, e) =>
+            {
+                if(queue.QueueExists())
+                {
+                    LavalinkTrack track = queue.GetNext();
+                    await conn.PlayAsync(track);
+                    await ctx.RespondAsync($"Now playing {track.Title}!");
+                }
+                
+            };
         }
 
         public class Config
         {
             public string Token { get; set; }
+        }
+    }
+
+    public class Queue
+    {
+        List<LavalinkTrack> tracks = new List<LavalinkTrack>();
+        LavalinkTrack? currentTrack = null;
+        public Queue()
+        {
+
+        }
+
+        public bool IsEmpty()
+        {
+            Console.WriteLine(tracks);
+            Console.WriteLine(currentTrack);
+            return tracks.Count == 0 && currentTrack == null;
+        }
+
+        public bool QueueExists()
+        {
+            return tracks.Count > 0;
+        }
+
+        public LavalinkTrack GetNext()
+        {
+            currentTrack = tracks[0];
+            tracks.RemoveAt(0);
+            return currentTrack;
+        }
+
+        public LavalinkTrack GetSafeNext()
+        {
+            return currentTrack;
+        }
+
+        public void AddTrack(LavalinkTrack track)
+        {
+            tracks.Add(track);
+            Console.WriteLine("Added song, queue length is now " + tracks.Count);
         }
     }
 }
