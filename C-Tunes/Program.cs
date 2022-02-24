@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using DSharpPlus.Entities;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
-
+using C_Tunes;
 
 namespace MyFirstBot
 {
@@ -58,6 +58,7 @@ namespace MyFirstBot
 
     public class Commands : BaseCommandModule
     {
+        LavaLinkUtils lavaUtil = new LavaLinkUtils();
         [Command]
         public async Task play(CommandContext ctx, params string[] song)
         {
@@ -82,8 +83,8 @@ namespace MyFirstBot
                 }
 
                 await node.ConnectAsync(channel);
-                LavaLinkUtils lavaa = new LavaLinkUtils();
-                await lavaa.addSong(ctx, String.Join(" ", song));
+                
+                await lavaUtil.addSong(ctx, String.Join(" ", song));
             } else
             {
                 await ctx.RespondAsync("You're not in a channel, pucko");
@@ -132,11 +133,18 @@ namespace MyFirstBot
             Console.WriteLine("Pucko pucko!");
             await ctx.RespondAsync("Pucko to you too!");
         }
+
+        [Command("q")]
+        public async Task Queue(CommandContext ctx)
+        {
+            Console.WriteLine("Queue");
+            ctx.RespondAsync(lavaUtil.GetMusicQueue());
+        }
     }
 
     public class LavaLinkUtils
     {
-        private Queue queue = new Queue();
+        private TrackQueue myQueue = new TrackQueue(true);
         public async Task addSong(CommandContext ctx, string song)
         {
             //Important to check the voice state itself first, 
@@ -171,30 +179,30 @@ namespace MyFirstBot
 
             var track = loadResult.Tracks.First();
 
-            if(queue.IsEmpty())
+            if(myQueue.IsEmpty())
             {
                 Console.WriteLine("First song");
-                queue.AddTrack(track);
+                myQueue.AddTrack(track);
                 playSong(conn, ctx);
             } else
             {
                 Console.WriteLine("Next song");
-                queue.AddTrack(track);
+                myQueue.AddTrack(track);
             }
         }
 
         private async void playSong(LavalinkGuildConnection conn, CommandContext ctx)
         {
-            LavalinkTrack track = queue.GetNext();
+            LavalinkTrack track = myQueue.GetNext();
             await conn.PlayAsync(track);
             await ctx.RespondAsync($"Now playing {track.Title}!");
             
 
             conn.PlaybackFinished += async (sender, e) =>
             {
-                if(queue.QueueExists())
+                if(myQueue.QueueExists())
                 {
-                    LavalinkTrack track = queue.GetNext();
+                    LavalinkTrack track = myQueue.GetNext();
                     await conn.PlayAsync(track);
                     await ctx.RespondAsync($"Now playing {track.Title}!");
                 }
@@ -202,49 +210,14 @@ namespace MyFirstBot
             };
         }
 
-        public class Config
+        public string GetMusicQueue()
         {
-            public string Token { get; set; }
+            return myQueue.GetQueue();
         }
     }
 
-    public class Queue
+    public class Config
     {
-        List<LavalinkTrack> tracks = new List<LavalinkTrack>();
-        LavalinkTrack? currentTrack = null;
-        public Queue()
-        {
-
-        }
-
-        public bool IsEmpty()
-        {
-            Console.WriteLine(tracks);
-            Console.WriteLine(currentTrack);
-            return tracks.Count == 0 && currentTrack == null;
-        }
-
-        public bool QueueExists()
-        {
-            return tracks.Count > 0;
-        }
-
-        public LavalinkTrack GetNext()
-        {
-            currentTrack = tracks[0];
-            tracks.RemoveAt(0);
-            return currentTrack;
-        }
-
-        public LavalinkTrack GetSafeNext()
-        {
-            return currentTrack;
-        }
-
-        public void AddTrack(LavalinkTrack track)
-        {
-            tracks.Add(track);
-            Console.WriteLine("Added song, queue length is now " + tracks.Count);
-        }
+        public string Token { get; set; }
     }
 }
